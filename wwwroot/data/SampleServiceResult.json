@@ -1,0 +1,20 @@
+[
+  {
+    "redirectUrl": "/campaignA",
+    "targetUrl": "/campaigns/targetcampaign",
+    "redirectType": 302,
+    "useRelative": false
+  },
+  {
+    "redirectUrl": "/campaignB",
+    "targetUrl": "/campaigns/targetcampaign/channelB",
+    "redirectType": 302,
+    "useRelative": false
+  },
+  {
+    "redirectUrl": "/product-directory",
+    "targetUrl": "/products",
+    "redirectType": 301,
+    "useRelative": true
+  }
+]
