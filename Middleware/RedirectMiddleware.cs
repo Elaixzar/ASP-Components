@@ -35,7 +35,7 @@ namespace ASP_Components.Middleware
             RedirectService = redirectService;
 
             //Check for config
-            _cacheDuration = TimeSpan.FromMinutes(double.Parse(configuration["RedirectCacheLifespan_Minutes"] ?? "5"));
+            _cacheDuration = TimeSpan.FromMinutes(double.Parse(configuration?["RedirectCacheLifespan_Minutes"] ?? "5"));
 
             //Update from source
             UpdateFromSourceAsync();
@@ -77,8 +77,17 @@ namespace ASP_Components.Middleware
                         ? $"{sanitizedPath.Replace(redirectConfig.RedirectUrl, redirectConfig.TargetUrl, StringComparison.OrdinalIgnoreCase)}"
                         : redirectConfig.TargetUrl;
 
-                    context.Response.Redirect(targetUrl, redirectConfig.RedirectType == 301);
-                    return;
+                    if (string.IsNullOrEmpty(targetUrl))
+                    {
+                        _logger?.LogError("RedirectMiddleware: targetUrl is null or empty.");
+                    }
+                    else
+                    {
+                        context.Response.Redirect(targetUrl, redirectConfig.RedirectType == 301);
+                        _logger?.LogInformation("RedirectMiddleware: Redirected " + sanitizedPath + " to " + targetUrl + ".");
+                        return;
+                    }
+
                 }
 
             }
@@ -87,36 +96,46 @@ namespace ASP_Components.Middleware
         }
 
         //Methods
-        private async void UpdateFromSourceAsync()
+        public async void UpdateFromSourceAsync()
         {
             IEnumerable<RedirectData>? newRedirectData = null;
 
             //Check for nulls
-            if (RedirectService == null)
-            {
-                _logger?.LogError(this.GetType().Name + " cannot get RedirectService, RedirectService is null.");
-            }
-            else
+            try
             {
 
-                newRedirectData = await RedirectService.GetRedirectDataAsync();
-                if (_redirectData == null)
+                if (RedirectService == null)
                 {
-                    _logger?.LogError(this.GetType().Name + " cannot get RedirectData, RedirectData is null.");
+                    _logger?.LogError(this.GetType().Name + " cannot get RedirectService, RedirectService is null.");
                 }
                 else
                 {
-                    var timeSinceLastFetch = _lastFetchedTime == DateTime.MinValue ? "" : $" {((DateTime.UtcNow - _lastFetchedTime)).ToString(@"hh\:mm\:ss")} since previous fetch.";
-                    _logger?.LogInformation($"RedirectData Updated.{timeSinceLastFetch}");
-                    _logger?.LogInformation(this.GetType().Name + $" RedirectData: {JsonSerializer.Serialize(_redirectData)}");
+
+                    newRedirectData = await RedirectService.GetRedirectDataAsync();
+                    if (_redirectData == null)
+                    {
+                        _logger?.LogError(this.GetType().Name + " cannot get RedirectData, RedirectData is null.");
+                    }
+                    else
+                    {
+                        var timeSinceLastFetch = _lastFetchedTime == DateTime.MinValue ? "" : $" {((DateTime.UtcNow - _lastFetchedTime)).ToString(@"hh\:mm\:ss")} since previous fetch.";
+                        _logger?.LogInformation($"RedirectData Updated.{timeSinceLastFetch}");
+                        _logger?.LogInformation(this.GetType().Name + $" RedirectData: {JsonSerializer.Serialize(_redirectData)}");
+                    }
                 }
+
+                lock (_updateLock)
+                {
+                    _redirectData = newRedirectData;
+                    _lastFetchedTime = DateTime.UtcNow;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(this.GetType().Name + " cannot get RedirectData, exception: " + ex.Message);
             }
 
-            lock (_updateLock)
-            {
-                _redirectData = newRedirectData;
-                _lastFetchedTime = DateTime.UtcNow;
-            }
         }
     }
 
