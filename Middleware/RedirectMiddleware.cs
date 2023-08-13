@@ -17,7 +17,9 @@ namespace ASP_Components.Middleware
         private readonly RequestDelegate _next;
         private DateTime _lastFetchedTime = DateTime.MinValue;
         private readonly TimeSpan _cacheDuration;
-        private IEnumerable<RedirectData>? _redirectData { get; set; }
+        private volatile IEnumerable<RedirectData>? _redirectData;
+        private readonly object _updateLock = new object();
+
 
         //Constructor
         public RedirectMiddleware(
@@ -87,6 +89,7 @@ namespace ASP_Components.Middleware
         //Methods
         private async void UpdateFromSourceAsync()
         {
+            IEnumerable<RedirectData>? newRedirectData = null;
 
             //Check for nulls
             if (RedirectService == null)
@@ -95,7 +98,8 @@ namespace ASP_Components.Middleware
             }
             else
             {
-                _redirectData = await RedirectService.GetRedirectDataAsync();
+
+                newRedirectData = await RedirectService.GetRedirectDataAsync();
                 if (_redirectData == null)
                 {
                     _logger?.LogError(this.GetType().Name + " cannot get RedirectData, RedirectData is null.");
@@ -108,7 +112,11 @@ namespace ASP_Components.Middleware
                 }
             }
 
-            _lastFetchedTime = DateTime.UtcNow;
+            lock (_updateLock)
+            {
+                _redirectData = newRedirectData;
+                _lastFetchedTime = DateTime.UtcNow;
+            }
         }
     }
 
