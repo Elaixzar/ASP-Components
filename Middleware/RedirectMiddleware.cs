@@ -49,6 +49,7 @@ namespace ASP_Components.Middleware
             //Check requested path
             var pathValue = context.Request.Path.Value;
             var sanitizedPath = pathValue?.Replace("//", "/");
+
             if (!string.IsNullOrEmpty(sanitizedPath))
             {
 
@@ -56,14 +57,22 @@ namespace ASP_Components.Middleware
                 var redirectConfig = _redirectData?.FirstOrDefault((rc) =>
                 {
                     if (rc.RedirectUrl == null) return false;
-                    return rc.RedirectUrl.Equals(sanitizedPath, StringComparison.OrdinalIgnoreCase);
+                    if (rc.UseRelative)
+                    {
+                        if (rc.RedirectUrl.Length > sanitizedPath.Length) return false;
+                        return sanitizedPath.Substring(0, rc.RedirectUrl.Length).Equals(rc.RedirectUrl, StringComparison.OrdinalIgnoreCase);
+                    }
+                    else
+                    {
+                        return rc.RedirectUrl.Equals(sanitizedPath, StringComparison.OrdinalIgnoreCase);
+                    }
                 });
 
                 //If a redirect is found, redirect
-                if (redirectConfig != null)
+                if (redirectConfig != null && redirectConfig.RedirectUrl != null)
                 {
                     var targetUrl = redirectConfig.UseRelative
-                        ? $"{context.Request.PathBase}{redirectConfig.TargetUrl}"
+                        ? $"{sanitizedPath.Replace(redirectConfig.RedirectUrl, redirectConfig.TargetUrl, StringComparison.OrdinalIgnoreCase)}"
                         : redirectConfig.TargetUrl;
 
                     context.Response.Redirect(targetUrl, redirectConfig.RedirectType == 301);
